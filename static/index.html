@@ -16,7 +16,7 @@
       </div>
     </header>
     <main class="workspace">
-      <aside class="panel items-panel" aria-label="Detected items">
+      <aside class="panel items-panel" id="itemsPanel" aria-label="Detected items">
         <div class="panel-head">
           <span class="eyebrow">Prompt</span>
         </div>
@@ -84,6 +84,7 @@
         <div id="itemsList" class="items-list"></div>
       </aside>
 
+      <div class="panel-resizer" id="leftResizer" aria-hidden="true"></div>
       <section id="dropzone" class="stage" aria-label="Image editor">
         <input id="fileInput" type="file" accept="image/*" multiple hidden />
         <div id="emptyState" class="empty-state">

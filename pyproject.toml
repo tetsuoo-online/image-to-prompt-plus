@@ -1,0 +1,9 @@
+[project]
+name = "Image-to-Prompt-Plus"
+description = "Image to JSON prompt for Ideogram 4"
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["PyQt6>=6.6.0"]
+
+[project.urls]
+Repository = "https://github.com/tetsuoo-online/image-to-prompt-plus"

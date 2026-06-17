@@ -99,6 +99,8 @@ const els = {
   fileInput: document.getElementById("fileInput"),
   pickFileBtn: document.getElementById("pickFileBtn"),
   addBoxBtn: document.getElementById("addBoxBtn"),
+  leftResizer: document.getElementById("leftResizer"),
+  itemsPanel: document.getElementById("itemsPanel"),
   stopBtn: document.getElementById("stopBtn"),
   autoDetectBtn: document.getElementById("autoDetectBtn"),
   resetBtn: document.getElementById("resetBtn"),
@@ -1394,6 +1396,29 @@ els.fileInput.addEventListener("change", () => {
 });
 els.addBoxBtn.addEventListener("click", addBox);
 els.stopBtn.addEventListener("click", () => { if (queue.controller) queue.controller.abort(); });
+
+(function () {
+  let startX = 0, startW = 0;
+  els.leftResizer.addEventListener("mousedown", (e) => {
+    startX = e.clientX;
+    startW = els.itemsPanel.getBoundingClientRect().width;
+    els.leftResizer.classList.add("resizing");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!els.leftResizer.classList.contains("resizing")) return;
+    const w = Math.max(180, Math.min(520, startW + e.clientX - startX));
+    document.documentElement.style.setProperty("--left-w", w + "px");
+  });
+  document.addEventListener("mouseup", () => {
+    if (!els.leftResizer.classList.contains("resizing")) return;
+    els.leftResizer.classList.remove("resizing");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
+}());
 els.autoDetectBtn.addEventListener("click", reanalyzeActive);
 els.resetBtn.addEventListener("click", resetToOriginal);
 els.exportAllBtn.addEventListener("click", exportAll);

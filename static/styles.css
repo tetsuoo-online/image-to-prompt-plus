@@ -66,13 +66,36 @@ textarea:focus-visible {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(230px, 280px) minmax(360px, 1fr) minmax(320px, 430px);
-  gap: 12px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
   padding: 12px;
+}
+
+.panel-resizer {
+  flex: 0 0 11px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.panel-resizer::after {
+  content: '';
+  width: 3px;
+  height: 36px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.panel-resizer:hover,
+.panel-resizer.resizing {
+  opacity: 1;
 }
 
 .queue-bar {
@@ -266,6 +289,9 @@ button:disabled {
 }
 
 .items-panel {
+  flex: 0 0 auto;
+  width: var(--left-w, 260px);
+  min-width: 180px;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -454,6 +480,9 @@ button:disabled {
   place-items: center;
   overflow: hidden;
   border-radius: 8px;
+  flex: 1 1 auto;
+  min-width: 280px;
+  margin: 0 12px;
 }
 
 .stage.drag-over {
@@ -628,23 +657,38 @@ button:disabled {
   font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+.json-panel {
+  flex: 0 1 430px;
+  min-width: 320px;
+}
+
 @media (max-width: 980px) {
   .workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(280px, 52vh) minmax(180px, 32vh) minmax(220px, 1fr);
+    flex-direction: column;
     height: auto;
     min-height: 100vh;
   }
 
-  .stage {
-    order: 1;
+  .panel-resizer {
+    display: none;
   }
 
   .items-panel {
+    width: 100% !important;
+    min-width: 0;
     order: 2;
   }
 
+  .stage {
+    min-height: 280px;
+    margin: 12px 0;
+    order: 1;
+  }
+
   .json-panel {
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 220px;
     order: 3;
   }
 }
