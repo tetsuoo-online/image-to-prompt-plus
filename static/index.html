@@ -10,9 +10,12 @@
     <header id="queueBar" class="queue-bar" hidden>
       <div id="queueRail" class="queue-rail" aria-label="Image queue"></div>
       <div class="queue-meta">
-        <span id="queueCounter" class="queue-counter"></span>
-        <button id="failedChip" class="failed-chip" type="button" hidden></button>
-        <button id="exportAllBtn" type="button" disabled>Export all</button>
+        <div class="queue-meta-row">
+          <span id="queueCounter" class="queue-counter"></span>
+          <button id="failedChip" class="failed-chip" type="button" hidden></button>
+          <button id="exportAllBtn" type="button" disabled>Export all</button>
+        </div>
+        <a href="http://127.0.0.1:8080" target="_blank" rel="noopener" class="llm-server-btn">LLM server ▶</a>
       </div>
     </header>
     <main class="workspace">
