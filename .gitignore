@@ -5,6 +5,7 @@ _temp/
 images/
 venv/
 *.bak
+*.ico
 *.pyc
 *.zip
 *- Copie*.*
