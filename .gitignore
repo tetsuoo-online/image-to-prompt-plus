@@ -1,0 +1,16 @@
+.claude/
+.git/
+__pycache__/
+_temp/
+images/
+venv/
+*.bak
+*.pyc
+*.zip
+*- Copie*.*
+_PUBLISH.BAT
+_update-version.ps1
+Desktop.ini
+node.zip
+README_*
+TODO.txt

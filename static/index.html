@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Image to Prompt</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260610-queue1" />
+  </head>
+  <body>
+    <header id="queueBar" class="queue-bar" hidden>
+      <div id="queueRail" class="queue-rail" aria-label="Image queue"></div>
+      <div class="queue-meta">
+        <span id="queueCounter" class="queue-counter"></span>
+        <button id="failedChip" class="failed-chip" type="button" hidden></button>
+        <button id="exportAllBtn" type="button" disabled>Export all</button>
+      </div>
+    </header>
+    <main class="workspace">
+      <aside class="panel items-panel" aria-label="Detected items">
+        <div class="panel-head">
+          <span class="eyebrow">Prompt</span>
+        </div>
+        <div class="prompt-fields">
+          <label class="field">
+            <span>Style model</span>
+            <select id="styleModelInput" aria-label="Style analysis model">
+              <option value="none">None (Florence-2 only)</option>
+              <option value="qwen3-vl-8b">Qwen 3-VL 8B · Q6_K</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>High level</span>
+            <textarea id="highLevelInput" rows="3" aria-label="High level description"></textarea>
+          </label>
+          <label class="field">
+            <span>Style</span>
+            <select id="stylePresetInput" aria-label="Style preset">
+              <option value="llm">LLM style</option>
+              <option value="photograph">Photograph</option>
+              <option value="illustration">Illustration</option>
+              <option value="render3d">3D render</option>
+              <option value="graphic_design">Graphic design</option>
+              <option value="painting">Painting</option>
+              <option value="custom_photo">Custom photo</option>
+              <option value="custom_art">Custom art</option>
+            </select>
+          </label>
+          <div id="styleFields" class="style-fields" hidden>
+            <label class="field">
+              <span>Aesthetics</span>
+              <input id="styleAestheticsInput" type="text" aria-label="Style aesthetics" />
+            </label>
+            <label class="field">
+              <span>Lighting</span>
+              <input id="styleLightingInput" type="text" aria-label="Style lighting" />
+            </label>
+            <label id="stylePhotoField" class="field">
+              <span>Photo</span>
+              <input id="stylePhotoInput" type="text" aria-label="Photo style" />
+            </label>
+            <label id="styleArtField" class="field">
+              <span>Art style</span>
+              <input id="styleArtStyleInput" type="text" aria-label="Art style" />
+            </label>
+            <label class="field">
+              <span>Medium</span>
+              <input id="styleMediumInput" type="text" aria-label="Style medium" />
+            </label>
+            <label class="field">
+              <span>Palette</span>
+              <input id="stylePaletteInput" type="text" aria-label="Style color palette" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Background</span>
+            <textarea id="backgroundInput" rows="3" aria-label="Background description"></textarea>
+          </label>
+        </div>
+        <div class="panel-head">
+          <span class="eyebrow">Elements</span>
+          <button id="addBoxBtn" class="icon-button" title="Add box" type="button">+</button>
+        </div>
+        <div id="emptyItems" class="quiet">Drop images to create editable zones.</div>
+        <div id="itemsList" class="items-list"></div>
+      </aside>
+
+      <section id="dropzone" class="stage" aria-label="Image editor">
+        <input id="fileInput" type="file" accept="image/*" multiple hidden />
+        <div id="emptyState" class="empty-state">
+          <button id="pickFileBtn" class="upload-button" type="button">Choose images</button>
+          <p>or drop or paste them here — multiple images queue up</p>
+        </div>
+        <div id="loadingState" class="loading-state" hidden>
+          <div class="spinner" aria-hidden="true"></div>
+          <span id="loadingLabel">Analyzing image</span>
+          <span id="styleModelBadge" hidden
+            style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; margin-top:4px;"></span>
+        </div>
+        <div id="imageWrap" class="image-wrap" hidden>
+          <img id="previewImage" alt="Uploaded image" />
+          <div id="overlay" class="overlay"></div>
+        </div>
+        <div class="stage-toolbar" aria-label="Image tools">
+          <button id="stopBtn" type="button" hidden>Stop</button>
+          <button id="autoDetectBtn" type="button">Auto detect</button>
+          <button id="resetBtn" type="button">Reset</button>
+        </div>
+      </section>
+
+      <aside class="panel json-panel" aria-label="JSON preview">
+        <div class="panel-head">
+          <span class="eyebrow">JSON</span>
+          <span id="jsonStatus" class="json-status">Valid</span>
+          <div class="actions">
+            <label class="toggle-label"><input type="checkbox" id="compactToggle" /> Compact</label>
+            <button id="copyBtn" type="button">Copy</button>
+            <button id="exportBtn" type="button">Export</button>
+          </div>
+        </div>
+        <textarea id="jsonPreview" class="json-preview" spellcheck="false" aria-label="Editable JSON prompt">{}</textarea>
+      </aside>
+    </main>
+    <script src="/static/app.js?v=20260610-queue1"></script>
+  </body>
+</html>
