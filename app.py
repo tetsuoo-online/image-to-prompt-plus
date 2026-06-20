@@ -17,7 +17,8 @@ from typing import Any
 
 import httpx
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+import torch
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -26,6 +27,18 @@ APP_DIR = Path(__file__).resolve().parent
 STATIC_DIR = APP_DIR / "static"
 
 DEFAULT_FLORENCE_MODEL = os.environ.get("FLORENCE_MODEL", "microsoft/Florence-2-large-ft")
+
+
+def load_settings() -> dict[str, Any]:
+    p = APP_DIR / "settings.json"
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+_settings: dict[str, Any] = load_settings()
 MOCK_MODE = os.environ.get("IMAGE_TO_PROMPT_MOCK", "").lower() in ("1", "true", "yes")
 LLAMA_SERVER_URL = os.environ.get("LLAMA_SERVER_URL", "http://localhost:8080").rstrip("/")
 HF_HOME = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface"))
@@ -62,7 +75,7 @@ Rules:
 - background: always filled, never empty
 - Be concise and specific. No explanations outside JSON."""
 
-app = FastAPI(title="Image to Prompt", version="2.0.0")
+app = FastAPI(title="Image to Prompt (SAM 3)", version="2.0.0-sam3")
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -81,12 +94,22 @@ class FlorenceRuntime:
     dtype: Any
 
 
+@dataclass
+class Sam3Runtime:
+    model: Any
+    processor: Any
+    device: str
+
+
 _runtime_lock = threading.Lock()
 _runtime: FlorenceRuntime | None = None
 
+_sam3_lock = threading.Lock()
+_sam3_runtime: Sam3Runtime | None = None
+
 
 def log_progress(request_id: str | None = None, message: str = "") -> None:
-    prefix = f"{request_id}" if request_id else "Image to Prompt"
+    prefix = f"{request_id}" if request_id else "Image to Prompt SAM3"
     print(f"{prefix}: {message}", flush=True)
 
 
@@ -294,18 +317,23 @@ def parse_florence(image: "Image.Image", request_id: str) -> tuple[str, str, lis
         run_florence_task(image, "<OCR_WITH_REGION>", "Running OCR with regions", request_id),
         "<OCR_WITH_REGION>")
 
+    min_area = _settings.get("min_bbox_area", 40)
+    min_ocr_area = _settings.get("min_ocr_area", 20)
+    max_elements = _settings.get("max_elements", 40)
+    iou_threshold = _settings.get("dedup_iou_threshold", 0.7)
+
     dense_items = []
     if isinstance(dense_result, dict):
         for label, box in zip(dense_result.get("labels", []), dense_result.get("bboxes", []), strict=False):
             bbox = normalize_bbox_xyxy(box, image.width, image.height)
-            if bbox_area(bbox) > 40:
+            if bbox_area(bbox) > min_area:
                 dense_items.append({"label": slug_label(label), "description": slug_label(label), "bbox": bbox})
 
     elements: list[dict[str, Any]] = []
     if isinstance(od_result, dict):
         for label, box in zip(od_result.get("labels", []), od_result.get("bboxes", []), strict=False):
             bbox = normalize_bbox_xyxy(box, image.width, image.height)
-            if bbox_area(bbox) < 40:
+            if bbox_area(bbox) < min_area:
                 continue
             desc = slug_label(label)
             best_dense = max(dense_items, key=lambda item: bbox_iou(bbox, item["bbox"]), default=None)
@@ -332,22 +360,222 @@ def parse_florence(image: "Image.Image", request_id: str) -> tuple[str, str, lis
                 xyxy = coords[:4]
             bbox = normalize_bbox_xyxy(xyxy, image.width, image.height)
             text = slug_label(label)
-            if bbox_area(bbox) > 20 and text:
+            if bbox_area(bbox) > min_ocr_area and text:
                 elements.append({"id": f"item-{len(elements)+1}", "type": "text",
                                   "label": text, "text": text, "description": f"text {text!r}",
                                   "bbox": bbox, "color": sample_color(image, bbox)})
 
     seen: list[dict[str, Any]] = []
-    for element in sorted(elements, key=lambda item: (item["bbox"][0], item["bbox"][1])):
-        duplicate = any(
-            bbox_iou(element["bbox"], other["bbox"]) > 0.85 and element["label"] == other["label"]
-            for other in seen)
-        if not duplicate:
+    for element in sorted(elements, key=lambda e: (e["bbox"][0], e["bbox"][1])):
+        if not any(bbox_iou(element["bbox"], other["bbox"]) > iou_threshold for other in seen):
             element["id"] = f"item-{len(seen)+1}"
             seen.append(element)
 
     background = caption or "Background and setting inferred from the uploaded image."
-    return caption, background, seen[:40]
+    return caption, background, seen[:max_elements]
+
+
+# ── SAM 3 ─────────────────────────────────────────────────────────────────────
+
+def find_sam3_checkpoint() -> Path | None:
+    repo_dir = HF_HOME / "hub" / "models--facebook--sam3"
+    if repo_dir.exists():
+        for p in sorted(repo_dir.rglob("sam3.pt")):
+            return p
+    return None
+
+
+def get_sam3_runtime(request_id: str | None = None) -> Sam3Runtime:
+    global _sam3_runtime
+    if _sam3_runtime is not None:
+        return _sam3_runtime
+    with _sam3_lock:
+        if _sam3_runtime is not None:
+            return _sam3_runtime
+        with progress_stage(request_id, "Loading SAM 3"):
+            import torch
+            from sam3 import model_builder as _sam3_mb
+            from sam3.model_builder import build_sam3_image_model
+            from sam3.model.sam3_image_processor import Sam3Processor
+            checkpoint = find_sam3_checkpoint()
+            if checkpoint is None:
+                raise RuntimeError(
+                    "SAM 3 checkpoint not found in HF cache. "
+                    f"Expected at {HF_HOME}/hub/models--facebook--sam3/**/sam3.pt"
+                )
+            bpe_path = Path(_sam3_mb.__file__).parent / "assets" / "bpe_simple_vocab_16e6.txt.gz"
+            log_progress(request_id, f"SAM 3 checkpoint: {checkpoint}")
+            log_progress(request_id, f"SAM 3 bpe: {bpe_path}")
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model = build_sam3_image_model(
+                bpe_path=str(bpe_path),
+                checkpoint_path=str(checkpoint),
+                load_from_HF=False,
+                device=device,
+            )
+            processor = Sam3Processor(model, device=device)
+            _sam3_runtime = Sam3Runtime(model=model, processor=processor, device=device)
+    return _sam3_runtime
+
+
+def detect_with_sam3(
+    image: "Image.Image",
+    od_labels: list[str],
+    od_bboxes: list[list[int]],
+    request_id: str,
+) -> list[dict[str, Any]]:
+    """Query SAM 3 for each unique Florence OD label to get precise bboxes.
+    Falls back to Florence bbox if SAM 3 confidence is too low."""
+    rt = get_sam3_runtime(request_id)
+
+    autocast_ctx = (
+        torch.autocast("cuda", dtype=torch.bfloat16)
+        if rt.device == "cuda"
+        else torch.autocast("cpu", dtype=torch.bfloat16, enabled=False)
+    )
+
+    with progress_stage(request_id, "SAM 3: encoding image"):
+        with autocast_ctx:
+            inference_state = rt.processor.set_image(image)
+
+    florence_by_label: dict[str, list[list[int]]] = {}
+    for label, bbox in zip(od_labels, od_bboxes):
+        florence_by_label.setdefault(label, []).append(bbox)
+
+    results: list[dict[str, Any]] = []
+    unique_labels = list(dict.fromkeys(od_labels))
+
+    for label in unique_labels:
+        with progress_stage(request_id, f"SAM 3: '{label}'"):
+            with autocast_ctx:
+                output = rt.processor.set_text_prompt(prompt=label, state=inference_state)
+
+        boxes = output.get("boxes", [])
+        scores = output.get("scores", [])
+
+        if hasattr(boxes, "tolist"):
+            boxes = boxes.tolist()
+        if hasattr(scores, "tolist"):
+            scores = scores.tolist()
+
+        sam3_confidence = _settings.get("sam3_confidence_threshold", 0.3)
+        min_area = _settings.get("min_bbox_area", 40)
+        found_any = False
+        for box, score in zip(boxes, scores):
+            if score > sam3_confidence:
+                bbox = normalize_bbox_xyxy(box, image.width, image.height)
+                if bbox_area(bbox) > min_area:
+                    results.append({"label": label, "bbox": bbox, "score": float(score)})
+                    found_any = True
+
+        if not found_any:
+            for bbox in florence_by_label.get(label, []):
+                results.append({"label": label, "bbox": bbox, "score": 0.0})
+
+    return results
+
+
+def parse_florence_with_sam3(
+    image: "Image.Image", request_id: str
+) -> tuple[str, str, list[dict[str, Any]]]:
+    caption_result = extract_task_value(
+        run_florence_task(image, "<MORE_DETAILED_CAPTION>", "Generating detailed caption", request_id),
+        "<MORE_DETAILED_CAPTION>")
+    caption = caption_result if isinstance(caption_result, str) else ""
+
+    dense_result = extract_task_value(
+        run_florence_task(image, "<DENSE_REGION_CAPTION>", "Detecting dense regions", request_id),
+        "<DENSE_REGION_CAPTION>")
+
+    od_result = extract_task_value(
+        run_florence_task(image, "<OD>", "Detecting objects (labels for SAM 3)", request_id), "<OD>")
+
+    ocr_result = extract_task_value(
+        run_florence_task(image, "<OCR_WITH_REGION>", "Running OCR with regions", request_id),
+        "<OCR_WITH_REGION>")
+
+    min_area = _settings.get("min_bbox_area", 40)
+    min_ocr_area = _settings.get("min_ocr_area", 20)
+    max_elements = _settings.get("max_elements", 40)
+
+    dense_items = []
+    if isinstance(dense_result, dict):
+        for label, box in zip(dense_result.get("labels", []), dense_result.get("bboxes", []), strict=False):
+            bbox = normalize_bbox_xyxy(box, image.width, image.height)
+            if bbox_area(bbox) > min_area:
+                dense_items.append({"label": slug_label(label), "description": slug_label(label), "bbox": bbox})
+
+    elements: list[dict[str, Any]] = []
+
+    if isinstance(od_result, dict) and od_result.get("labels"):
+        od_labels_raw = od_result.get("labels", [])
+        od_bboxes_raw = od_result.get("bboxes", [])
+
+        od_labels, od_bboxes = [], []
+        for label, box in zip(od_labels_raw, od_bboxes_raw):
+            bbox = normalize_bbox_xyxy(box, image.width, image.height)
+            if bbox_area(bbox) >= min_area:
+                od_labels.append(slug_label(label))
+                od_bboxes.append(bbox)
+
+        if od_labels:
+            sam3_results = detect_with_sam3(image, od_labels, od_bboxes, request_id)
+
+            for item in sam3_results:
+                bbox = item["bbox"]
+                label = item["label"]
+                desc = label
+                best_dense = max(dense_items, key=lambda d: bbox_iou(bbox, d["bbox"]), default=None)
+                if best_dense and bbox_iou(bbox, best_dense["bbox"]) > 0.2:
+                    desc = best_dense["description"]
+                elements.append({
+                    "id": f"item-{len(elements)+1}", "type": "obj",
+                    "label": label, "description": desc,
+                    "bbox": bbox, "color": sample_color(image, bbox),
+                    "_sam3_score": item["score"],
+                })
+
+    if not elements:
+        for item in dense_items[:20]:
+            elements.append({
+                "id": f"item-{len(elements)+1}", "type": "obj",
+                "label": item["label"], "description": item["description"],
+                "bbox": item["bbox"], "color": sample_color(image, item["bbox"]),
+            })
+
+    if isinstance(ocr_result, dict):
+        quad_boxes = ocr_result.get("quad_boxes") or ocr_result.get("bboxes")
+        for label, box in zip(ocr_result.get("labels", []), quad_boxes, strict=False):
+            coords = [float(v) for v in box]
+            if len(coords) >= 8:
+                xs, ys = coords[0::2], coords[1::2]
+                xyxy = [min(xs), min(ys), max(xs), max(ys)]
+            else:
+                xyxy = coords[:4]
+            bbox = normalize_bbox_xyxy(xyxy, image.width, image.height)
+            text = slug_label(label)
+            if bbox_area(bbox) > min_ocr_area and text:
+                elements.append({
+                    "id": f"item-{len(elements)+1}", "type": "text",
+                    "label": text, "text": text, "description": f"text {text!r}",
+                    "bbox": bbox, "color": sample_color(image, bbox),
+                })
+
+    iou_threshold = _settings.get("dedup_iou_threshold", 0.7)
+    # Sort highest SAM3 score first so the best detection wins when two overlap
+    seen: list[dict[str, Any]] = []
+    for element in sorted(elements, key=lambda e: (-e.get("_sam3_score", 0.0), e["bbox"][0], e["bbox"][1])):
+        if not any(bbox_iou(element["bbox"], other["bbox"]) > iou_threshold for other in seen):
+            element["id"] = f"item-{len(seen)+1}"
+            seen.append(element)
+
+    # Re-sort final list by position (top→bottom, left→right) for readability
+    seen.sort(key=lambda e: (e["bbox"][0], e["bbox"][1]))
+    for idx, e in enumerate(seen, start=1):
+        e["id"] = f"item-{idx}"
+
+    background = caption or "Background and setting inferred from the uploaded image."
+    return caption, background, seen[:max_elements]
 
 
 # ── MLLM style analysis via llama-server ─────────────────────────────────────
@@ -484,7 +712,12 @@ class LlamaServerManager:
             if self._probe():
                 if self._current_model == model_key:
                     return True
-                # Wrong model running (external or switched) — restart
+                if self._process is None:
+                    # Server running but we don't own it (external or other app instance)
+                    # Adopt it rather than trying to restart it
+                    log_progress(request_id, f"Adopting existing llama-server for {model_key}")
+                    self._current_model = model_key
+                    return True
                 self._stop(request_id)
             return self._start(model_key, request_id)
 
@@ -492,7 +725,7 @@ class LlamaServerManager:
 _llama_manager = LlamaServerManager()
 
 
-async def analyze_style(image: "Image.Image", model_key: str, request_id: str) -> dict[str, Any] | None:  # {"style":…, "high_level_description":…, "background":…}
+async def analyze_style(image: "Image.Image", model_key: str, request_id: str) -> dict[str, Any] | None:
     if model_key == "none":
         return None
     with progress_stage(request_id, f"Ensuring llama-server ({model_key})"):
@@ -549,22 +782,42 @@ def mock_parse(image: "Image.Image") -> tuple[str, str, list[dict[str, Any]]]:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@app.get("/api/settings")
+def settings_route() -> dict[str, Any]:
+    return _settings
+
+
+@app.post("/api/settings")
+async def update_settings(request: Request) -> dict[str, Any]:
+    global _settings
+    data = await request.json()
+    _settings.update({k: v for k, v in data.items() if v is not None})
+    (APP_DIR / "settings.json").write_text(
+        json.dumps(_settings, indent=2) + "\n", encoding="utf-8"
+    )
+    return _settings
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
+    sam3_ckpt = find_sam3_checkpoint()
     return {
         "ok": True,
+        "mode": "florence2 + sam3",
         "florence_model": DEFAULT_FLORENCE_MODEL,
         "mock": MOCK_MODE,
         "florence_loaded": _runtime is not None,
+        "sam3_loaded": _sam3_runtime is not None,
+        "sam3_checkpoint": str(sam3_ckpt) if sam3_ckpt else None,
         "llama_server_url": LLAMA_SERVER_URL,
         "hf_home": str(HF_HOME),
         "mllm_models": {k: resolve_mllm_model(k) for k in MLLM_SPECS},
+        "settings": _settings,
     }
 
 
 @app.get("/api/mllm-models")
 def mllm_models_route() -> dict[str, Any]:
-    """Return available MLLM models with their local cache status."""
     return {k: resolve_mllm_model(k) for k in MLLM_SPECS}
 
 
@@ -572,10 +825,11 @@ def mllm_models_route() -> dict[str, Any]:
 async def analyze(
     file: UploadFile = File(...),
     style_model: str = Form(default="none"),
+    caption_model: str = Form(default="florence2+sam3"),
 ) -> JSONResponse:
     request_id = uuid.uuid4().hex[:8]
     started_at = time.perf_counter()
-    log_progress(request_id, f"Received: {file.filename or 'image'}, style_model={style_model!r}")
+    log_progress(request_id, f"Received: {file.filename or 'image'}, style_model={style_model!r}, caption_model={caption_model!r}")
 
     if not file.content_type or not file.content_type.startswith("image"):
         raise HTTPException(status_code=400, detail="Upload an image file.")
@@ -585,17 +839,17 @@ async def analyze(
             image = load_image(await file.read())
         log_progress(request_id, f"Size {image.width}x{image.height}")
 
-        # Step 1 — Florence-2: caption, bbox, OCR
         if MOCK_MODE:
             with progress_stage(request_id, "Mock parser"):
                 caption, background, elements = mock_parse(image)
+        elif caption_model == "florence2+sam3":
+            caption, background, elements = parse_florence_with_sam3(image, request_id)
         else:
             caption, background, elements = parse_florence(image, request_id)
 
         with progress_stage(request_id, "Dominant palette"):
             palette = dominant_palette(image)
 
-        # Step 2 — MLLM style + description (optional, sequential après Florence)
         style_description = None
         if style_model != "none":
             qwen = await analyze_style(image, style_model, request_id)
@@ -617,9 +871,17 @@ async def analyze(
     elapsed = time.perf_counter() - started_at
     log_progress(request_id, f"Done — {len(elements)} elements in {elapsed:.1f}s")
 
+    if MOCK_MODE:
+        model_label = "mock"
+    elif caption_model == "florence2+sam3":
+        model_label = f"{DEFAULT_FLORENCE_MODEL} + sam3"
+    else:
+        model_label = DEFAULT_FLORENCE_MODEL
+
     return JSONResponse({
         "image": {"width": image.width, "height": image.height},
-        "model": "mock" if MOCK_MODE else DEFAULT_FLORENCE_MODEL,
+        "model": model_label,
+        "caption_model": caption_model,
         "style_model": style_model if style_description else "none",
         "caption": caption,
         "background": background,
@@ -640,9 +902,9 @@ app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
-    parser.add_argument("--port", default=int(os.environ.get("PORT", 7860)), type=int)
+    parser.add_argument("--port", default=int(os.environ.get("PORT", 7861)), type=int)
     args = parser.parse_args()
-    print(f"Image to Prompt v2 running at http://{args.host}:{args.port}", flush=True)
+    print(f"Image to Prompt SAM3 running at http://{args.host}:{args.port}", flush=True)
     import uvicorn
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 

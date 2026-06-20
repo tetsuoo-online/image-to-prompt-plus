@@ -1,5 +1,5 @@
 {
-  "caption_model": "florence2",
+  "caption_model": "florence2+sam3",
   "dedup_iou_threshold": 0.7,
   "sam3_confidence_threshold": 0.3,
   "min_bbox_area": 40,

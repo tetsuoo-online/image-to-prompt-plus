@@ -3,6 +3,7 @@
 __pycache__/
 _temp/
 images/
+sam3/
 venv/
 *.bak
 *.ico
