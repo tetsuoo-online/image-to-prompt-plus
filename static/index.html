@@ -133,20 +133,20 @@
           </div>
           <p>or drop or paste them here — multiple images queue up</p>
         </div>
+        <div id="stageFilename" class="stage-filename" hidden></div>
         <div id="loadingState" class="loading-state" hidden>
           <div class="spinner" aria-hidden="true"></div>
           <span id="loadingLabel">Analyzing image</span>
-          <span id="loadingFilename" style="font-size:11px; color:var(--muted); margin-top:2px;"></span>
           <span id="styleModelBadge" hidden
             style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; margin-top:4px;"></span>
         </div>
         <div id="imageWrap" class="image-wrap" hidden>
           <img id="previewImage" alt="Uploaded image" />
           <div id="overlay" class="overlay"></div>
-          <div id="imageFilename" class="image-filename"></div>
         </div>
         <div class="stage-toolbar" aria-label="Image tools">
           <button id="stopBtn" type="button" hidden>Stop</button>
+          <button id="folderBtn" type="button">Folder</button>
           <button id="autoDetectBtn" type="button">Auto detect</button>
           <button id="resetBtn" type="button">Reset</button>
         </div>

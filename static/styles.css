@@ -641,20 +641,20 @@ button:disabled {
   max-height: calc(100% - 68px);
 }
 
-.image-filename {
+.stage-filename {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 3px 8px;
-  background: rgba(0, 0, 0, 0.45);
-  color: rgba(255, 255, 255, 0.85);
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  text-align: center;
   font-size: 11px;
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
-  border-radius: 0 0 6px 6px;
+  user-select: text;
+  cursor: text;
+  z-index: 1;
 }
 
 #previewImage {

@@ -203,9 +203,9 @@ const els = {
   exportAllBtn: document.getElementById("exportAllBtn"),
   captionModelInput: document.getElementById("captionModelInput"),
   sam3SettingsGroup: document.getElementById("sam3SettingsGroup"),
+  stageFilename: document.getElementById("stageFilename"),
   loadingLabel: document.getElementById("loadingLabel"),
-  loadingFilename: document.getElementById("loadingFilename"),
-  imageFilename: document.getElementById("imageFilename"),
+  folderBtn: document.getElementById("folderBtn"),
   dedupIouInput: document.getElementById("dedupIouInput"),
   dedupIouVal: document.getElementById("dedupIouVal"),
   sam3ConfInput: document.getElementById("sam3ConfInput"),
@@ -1068,11 +1068,10 @@ function syncStageLoading() {
   els.stopBtn.hidden = !queue.running;
   if (pending) {
     els.loadingLabel.textContent = doc.status === "queued" ? "Waiting in queue" : "Analyzing image";
-    els.loadingFilename.textContent = doc.name || "";
   }
-  if (els.imageFilename) {
-    els.imageFilename.textContent = doc && !pending ? (doc.name || "") : "";
-  }
+  const filename = doc ? (doc.name || "") : "";
+  els.stageFilename.textContent = filename;
+  els.stageFilename.hidden = !filename;
 }
 
 function makeQueueTile(doc) {
@@ -1489,6 +1488,7 @@ function updateStyleField(field) {
 
 els.pickFileBtn.addEventListener("click", () => els.fileInput.click());
 els.pickFolderBtn.addEventListener("click", () => els.folderInput.click());
+els.folderBtn.addEventListener("click", () => els.folderInput.click());
 els.fileInput.addEventListener("change", () => {
   handleFiles(els.fileInput.files);
   els.fileInput.value = "";
