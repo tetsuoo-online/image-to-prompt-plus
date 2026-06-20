@@ -15,7 +15,8 @@ This fork removes the Pinokio launcher and adds multimodal LLM support and SAM 3
 - **Image filename** displayed above the canvas, selectable for copy-paste
 - **Compact JSON toggle** in the output panel
 - **Stop button** to cancel an ongoing analysis
-- `launch_app_sam3.bat` — convenience launcher for Windows
+- `download_models.bat` — downloads GGUF model files into the Hugging Face cache
+- `launch_app.bat` — convenience launcher for Windows
 
 ## Requirements
 
@@ -63,12 +64,12 @@ Edit the top of `app_sam3.py` or set environment variables:
 ## Run
 
 ```powershell
-venv\Scripts\python.exe app_sam3.py
+venv\Scripts\python.exe app.py
 ```
 
-Or double-click `launch_app_sam3.bat`.
+Or double-click `launch_app.bat`.
 
-Then open `http://127.0.0.1:7861`.
+Then open `http://127.0.0.1:7860`.
 
 ## How it works
 
