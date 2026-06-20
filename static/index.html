@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Image to Prompt</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260610-queue1" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260619-tabs1" />
   </head>
   <body>
     <header id="queueBar" class="queue-bar" hidden>
@@ -20,89 +20,130 @@
     </header>
     <main class="workspace">
       <aside class="panel items-panel" id="itemsPanel" aria-label="Detected items">
-        <div class="panel-head">
-          <span class="eyebrow">Prompt</span>
+        <div class="tab-nav" role="tablist">
+          <button class="tab-btn active" data-tab="tabPrompt" role="tab" aria-selected="true" aria-controls="tabPrompt">Prompt</button>
+          <button class="tab-btn" data-tab="tabSettings" role="tab" aria-selected="false" aria-controls="tabSettings">Settings</button>
         </div>
-        <div class="prompt-fields">
-          <label class="field">
-            <span>Style model</span>
-            <select id="styleModelInput" aria-label="Style analysis model">
-              <option value="none">None (Florence-2 only)</option>
-              <option value="qwen3-vl-8b">Qwen 3-VL 8B · Q6_K</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>High level</span>
-            <textarea id="highLevelInput" rows="3" aria-label="High level description"></textarea>
-          </label>
-          <label class="field">
-            <span>Style</span>
-            <select id="stylePresetInput" aria-label="Style preset">
-              <option value="llm">LLM style</option>
-              <option value="photograph">Photograph</option>
-              <option value="illustration">Illustration</option>
-              <option value="render3d">3D render</option>
-              <option value="graphic_design">Graphic design</option>
-              <option value="painting">Painting</option>
-              <option value="custom_photo">Custom photo</option>
-              <option value="custom_art">Custom art</option>
-            </select>
-          </label>
-          <div id="styleFields" class="style-fields" hidden>
+
+        <div class="tab-content" id="tabPrompt" role="tabpanel">
+          <div class="prompt-fields">
             <label class="field">
-              <span>Aesthetics</span>
-              <input id="styleAestheticsInput" type="text" aria-label="Style aesthetics" />
+              <span>Caption model</span>
+              <select id="captionModelInput" aria-label="Caption model">
+                <option value="florence2+sam3">Florence-2 + SAM 3</option>
+                <option value="florence2">Florence-2 only</option>
+              </select>
             </label>
             <label class="field">
-              <span>Lighting</span>
-              <input id="styleLightingInput" type="text" aria-label="Style lighting" />
-            </label>
-            <label id="stylePhotoField" class="field">
-              <span>Photo</span>
-              <input id="stylePhotoInput" type="text" aria-label="Photo style" />
-            </label>
-            <label id="styleArtField" class="field">
-              <span>Art style</span>
-              <input id="styleArtStyleInput" type="text" aria-label="Art style" />
+              <span>Style model</span>
+              <select id="styleModelInput" aria-label="Style analysis model">
+                <option value="none">None (Florence-2 only)</option>
+                <option value="qwen3-vl-8b">Qwen 3-VL 8B · Q6_K</option>
+              </select>
             </label>
             <label class="field">
-              <span>Medium</span>
-              <input id="styleMediumInput" type="text" aria-label="Style medium" />
+              <span>High level</span>
+              <textarea id="highLevelInput" rows="3" aria-label="High level description"></textarea>
             </label>
             <label class="field">
-              <span>Palette</span>
-              <input id="stylePaletteInput" type="text" aria-label="Style color palette" />
+              <span>Style</span>
+              <select id="stylePresetInput" aria-label="Style preset">
+                <option value="llm">LLM style</option>
+                <option value="photograph">Photograph</option>
+                <option value="illustration">Illustration</option>
+                <option value="render3d">3D render</option>
+                <option value="graphic_design">Graphic design</option>
+                <option value="painting">Painting</option>
+                <option value="custom_photo">Custom photo</option>
+                <option value="custom_art">Custom art</option>
+              </select>
+            </label>
+            <div id="styleFields" class="style-fields" hidden>
+              <label class="field">
+                <span>Aesthetics</span>
+                <input id="styleAestheticsInput" type="text" aria-label="Style aesthetics" />
+              </label>
+              <label class="field">
+                <span>Lighting</span>
+                <input id="styleLightingInput" type="text" aria-label="Style lighting" />
+              </label>
+              <label id="stylePhotoField" class="field">
+                <span>Photo</span>
+                <input id="stylePhotoInput" type="text" aria-label="Photo style" />
+              </label>
+              <label id="styleArtField" class="field">
+                <span>Art style</span>
+                <input id="styleArtStyleInput" type="text" aria-label="Art style" />
+              </label>
+              <label class="field">
+                <span>Medium</span>
+                <input id="styleMediumInput" type="text" aria-label="Style medium" />
+              </label>
+              <label class="field">
+                <span>Palette</span>
+                <input id="stylePaletteInput" type="text" aria-label="Style color palette" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Background</span>
+              <textarea id="backgroundInput" rows="3" aria-label="Background description"></textarea>
             </label>
           </div>
-          <label class="field">
-            <span>Background</span>
-            <textarea id="backgroundInput" rows="3" aria-label="Background description"></textarea>
-          </label>
+          <div class="panel-head">
+            <span class="eyebrow">Elements</span>
+            <button id="addBoxBtn" class="icon-button" title="Add box" type="button">+</button>
+          </div>
+          <div id="emptyItems" class="quiet">Drop images to create editable zones.</div>
+          <div id="itemsList" class="items-list"></div>
         </div>
-        <div class="panel-head">
-          <span class="eyebrow">Elements</span>
-          <button id="addBoxBtn" class="icon-button" title="Add box" type="button">+</button>
+
+        <div class="tab-content" id="tabSettings" role="tabpanel" hidden>
+          <div class="settings-panel">
+            <div class="settings-group" id="sam3SettingsGroup">
+              <div class="settings-group-title">SAM 3 detection</div>
+              <label class="field field-slider">
+                <span>IoU dedup <output id="dedupIouVal">0.70</output></span>
+                <input id="dedupIouInput" type="range" min="0.10" max="0.95" step="0.05" value="0.70" />
+              </label>
+              <label class="field field-slider">
+                <span>SAM 3 confidence <output id="sam3ConfVal">0.30</output></span>
+                <input id="sam3ConfInput" type="range" min="0.05" max="0.90" step="0.05" value="0.30" />
+              </label>
+              <label class="field field-slider">
+                <span>Min bbox area <output id="minAreaVal">40</output></span>
+                <input id="minAreaInput" type="range" min="1" max="200" step="1" value="40" />
+              </label>
+              <label class="field field-slider">
+                <span>Max elements <output id="maxElemsVal">40</output></span>
+                <input id="maxElemsInput" type="range" min="5" max="80" step="5" value="40" />
+              </label>
+            </div>
+          </div>
         </div>
-        <div id="emptyItems" class="quiet">Drop images to create editable zones.</div>
-        <div id="itemsList" class="items-list"></div>
       </aside>
 
       <div class="panel-resizer" id="leftResizer" aria-hidden="true"></div>
       <section id="dropzone" class="stage" aria-label="Image editor">
         <input id="fileInput" type="file" accept="image/*" multiple hidden />
+        <input id="folderInput" type="file" accept="image/*" webkitdirectory hidden />
         <div id="emptyState" class="empty-state">
-          <button id="pickFileBtn" class="upload-button" type="button">Choose images</button>
+          <div class="upload-buttons">
+            <button id="pickFileBtn" class="upload-button" type="button">Choose images</button>
+            <button id="pickFolderBtn" class="upload-button" type="button">Choose folder</button>
+          </div>
           <p>or drop or paste them here — multiple images queue up</p>
         </div>
         <div id="loadingState" class="loading-state" hidden>
           <div class="spinner" aria-hidden="true"></div>
           <span id="loadingLabel">Analyzing image</span>
+          <span id="loadingFilename" style="font-size:11px; color:var(--muted); margin-top:2px;"></span>
           <span id="styleModelBadge" hidden
             style="font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; margin-top:4px;"></span>
         </div>
         <div id="imageWrap" class="image-wrap" hidden>
           <img id="previewImage" alt="Uploaded image" />
           <div id="overlay" class="overlay"></div>
+          <div id="imageFilename" class="image-filename"></div>
         </div>
         <div class="stage-toolbar" aria-label="Image tools">
           <button id="stopBtn" type="button" hidden>Stop</button>
@@ -124,6 +165,6 @@
         <textarea id="jsonPreview" class="json-preview" spellcheck="false" aria-label="Editable JSON prompt">{}</textarea>
       </aside>
     </main>
-    <script src="/static/app.js?v=20260610-queue1"></script>
+    <script src="/static/app.js?v=20260619-tabs1"></script>
   </body>
 </html>

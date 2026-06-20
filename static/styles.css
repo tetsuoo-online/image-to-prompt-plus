@@ -407,6 +407,85 @@ button:disabled {
   background: #fbfbfa;
 }
 
+.tab-nav {
+  display: flex;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-btn {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  min-height: 38px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+  background: transparent;
+  border-color: transparent;
+}
+
+.tab-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--selected);
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-panel {
+  padding: 12px;
+  display: grid;
+  gap: 16px;
+}
+
+.settings-group {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-group-title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.field-slider span {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.field-slider output {
+  color: var(--text);
+  font-weight: 400;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-slider input[type="range"] {
+  width: 100%;
+  min-height: 20px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  accent-color: var(--selected);
+}
+
 .items-list {
   flex: 0 0 auto;
   min-height: auto;
@@ -525,6 +604,11 @@ button:disabled {
   color: var(--muted);
 }
 
+.upload-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 .upload-button {
   background: var(--selected);
   color: #fff;
@@ -555,6 +639,22 @@ button:disabled {
   position: relative;
   max-width: calc(100% - 24px);
   max-height: calc(100% - 68px);
+}
+
+.image-filename {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  border-radius: 0 0 6px 6px;
 }
 
 #previewImage {

@@ -1,0 +1,10 @@
+{
+  "caption_model": "florence2+sam3",
+  "dedup_iou_threshold": 0.7,
+  "sam3_confidence_threshold": 0.3,
+  "min_bbox_area": 40,
+  "min_ocr_area": 20,
+  "max_elements": 40,
+  "style_model": "qwen3-vl-8b",
+  "style_preset": "llm"
+}

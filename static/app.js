@@ -70,6 +70,70 @@ const STYLE_PRESETS = {
   },
 };
 
+const savedSettings = {
+  caption_model: "florence2+sam3",
+  style_model: "none",
+  style_preset: "llm",
+  dedup_iou_threshold: 0.70,
+  sam3_confidence_threshold: 0.30,
+  min_bbox_area: 40,
+  max_elements: 40,
+};
+
+let settingsSaveTimer = null;
+
+async function saveSettingsToServer() {
+  const settings = {
+    caption_model: state.captionModel,
+    style_model: state.styleModel,
+    style_preset: state.stylePreset,
+    dedup_iou_threshold: parseFloat(els.dedupIouInput.value),
+    sam3_confidence_threshold: parseFloat(els.sam3ConfInput.value),
+    min_bbox_area: parseInt(els.minAreaInput.value, 10),
+    max_elements: parseInt(els.maxElemsInput.value, 10),
+  };
+  Object.assign(savedSettings, settings);
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+  } catch {}
+}
+
+function scheduleSaveSettings() {
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = setTimeout(saveSettingsToServer, 600);
+}
+
+async function loadSettingsFromServer() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) return;
+    const s = await res.json();
+    if (s.caption_model != null) savedSettings.caption_model = s.caption_model;
+    if (s.style_model != null) savedSettings.style_model = s.style_model;
+    if (s.style_preset != null) savedSettings.style_preset = s.style_preset;
+    if (s.dedup_iou_threshold != null) savedSettings.dedup_iou_threshold = s.dedup_iou_threshold;
+    if (s.sam3_confidence_threshold != null) savedSettings.sam3_confidence_threshold = s.sam3_confidence_threshold;
+    if (s.min_bbox_area != null) savedSettings.min_bbox_area = s.min_bbox_area;
+    if (s.max_elements != null) savedSettings.max_elements = s.max_elements;
+    state.captionModel = savedSettings.caption_model;
+    syncCaptionModelInput();
+    state.styleModel = savedSettings.style_model;
+    syncStyleModelInput();
+    els.dedupIouInput.value = savedSettings.dedup_iou_threshold;
+    els.dedupIouVal.textContent = Number(savedSettings.dedup_iou_threshold).toFixed(2);
+    els.sam3ConfInput.value = savedSettings.sam3_confidence_threshold;
+    els.sam3ConfVal.textContent = Number(savedSettings.sam3_confidence_threshold).toFixed(2);
+    els.minAreaInput.value = savedSettings.min_bbox_area;
+    els.minAreaVal.textContent = savedSettings.min_bbox_area;
+    els.maxElemsInput.value = savedSettings.max_elements;
+    els.maxElemsVal.textContent = savedSettings.max_elements;
+  } catch {}
+}
+
 const state = {
   file: null,
   imageUrl: "",
@@ -90,6 +154,7 @@ const state = {
     palette: [],
   },
   background: "",
+  captionModel: "florence2+sam3",
   styleModel: "none",
   drag: null,
 };
@@ -97,7 +162,9 @@ const state = {
 const els = {
   dropzone: document.getElementById("dropzone"),
   fileInput: document.getElementById("fileInput"),
+  folderInput: document.getElementById("folderInput"),
   pickFileBtn: document.getElementById("pickFileBtn"),
+  pickFolderBtn: document.getElementById("pickFolderBtn"),
   addBoxBtn: document.getElementById("addBoxBtn"),
   leftResizer: document.getElementById("leftResizer"),
   itemsPanel: document.getElementById("itemsPanel"),
@@ -134,7 +201,19 @@ const els = {
   queueCounter: document.getElementById("queueCounter"),
   failedChip: document.getElementById("failedChip"),
   exportAllBtn: document.getElementById("exportAllBtn"),
+  captionModelInput: document.getElementById("captionModelInput"),
+  sam3SettingsGroup: document.getElementById("sam3SettingsGroup"),
   loadingLabel: document.getElementById("loadingLabel"),
+  loadingFilename: document.getElementById("loadingFilename"),
+  imageFilename: document.getElementById("imageFilename"),
+  dedupIouInput: document.getElementById("dedupIouInput"),
+  dedupIouVal: document.getElementById("dedupIouVal"),
+  sam3ConfInput: document.getElementById("sam3ConfInput"),
+  sam3ConfVal: document.getElementById("sam3ConfVal"),
+  minAreaInput: document.getElementById("minAreaInput"),
+  minAreaVal: document.getElementById("minAreaVal"),
+  maxElemsInput: document.getElementById("maxElemsInput"),
+  maxElemsVal: document.getElementById("maxElemsVal"),
 };
 
 const queue = {
@@ -495,6 +574,7 @@ function syncControlValue(control, value) {
 }
 
 function syncPromptInputs() {
+  syncCaptionModelInput();
   syncControlValue(els.highLevelInput, state.highLevelDescription || state.caption || "");
   syncControlValue(els.backgroundInput, state.background || "");
   syncControlValue(els.stylePresetInput, state.stylePreset);
@@ -508,6 +588,15 @@ function syncPromptInputs() {
   syncControlValue(els.styleMediumInput, state.styleFields.medium);
   syncControlValue(els.stylePaletteInput, paletteToText(state.styleFields.palette));
   syncStyleModelInput();
+}
+
+function syncCaptionModelInput() {
+  if (els.captionModelInput && els.captionModelInput.value !== state.captionModel) {
+    els.captionModelInput.value = state.captionModel;
+  }
+  if (els.sam3SettingsGroup) {
+    els.sam3SettingsGroup.hidden = state.captionModel !== "florence2+sam3";
+  }
 }
 
 function syncStyleModelInput() {
@@ -790,11 +879,12 @@ function createDoc(file) {
     palette: [],
     caption: "",
     highLevelDescription: "",
-    stylePreset: "llm",
+    stylePreset: savedSettings.style_preset || "llm",
     styleKind: "none",
     styleFields: { aesthetics: "", lighting: "", photo: "", medium: "", artStyle: "", palette: [] },
     background: "",
-    styleModel: state.styleModel || "none",
+    captionModel: savedSettings.caption_model || "florence2+sam3",
+    styleModel: savedSettings.style_model || "none",
   };
 }
 
@@ -808,6 +898,7 @@ const DOC_FIELDS = [
   "styleKind",
   "styleFields",
   "background",
+  "captionModel",
   "styleModel",
 ];
 
@@ -833,6 +924,8 @@ function loadDoc(doc) {
     for (const field of DOC_FIELDS) {
       state[field] = doc[field];
     }
+    state.captionModel = doc.captionModel ?? "florence2+sam3";
+    syncCaptionModelInput();
     state.styleModel = doc.styleModel ?? "none";
     syncStyleModelInput();
     els.previewImage.src = doc.imageUrl;
@@ -884,6 +977,7 @@ function handleFiles(fileList) {
 async function requestAnalysis(file, signal) {
   const form = new FormData();
   form.append("file", file);
+  form.append("caption_model", state.captionModel || "florence2+sam3");
   form.append("style_model", state.styleModel || "none");
   const response = await fetch("/api/analyze", { method: "POST", body: form, signal });
   if (!response.ok) {
@@ -974,6 +1068,10 @@ function syncStageLoading() {
   els.stopBtn.hidden = !queue.running;
   if (pending) {
     els.loadingLabel.textContent = doc.status === "queued" ? "Waiting in queue" : "Analyzing image";
+    els.loadingFilename.textContent = doc.name || "";
+  }
+  if (els.imageFilename) {
+    els.imageFilename.textContent = doc && !pending ? (doc.name || "") : "";
   }
 }
 
@@ -1390,9 +1488,14 @@ function updateStyleField(field) {
 }
 
 els.pickFileBtn.addEventListener("click", () => els.fileInput.click());
+els.pickFolderBtn.addEventListener("click", () => els.folderInput.click());
 els.fileInput.addEventListener("change", () => {
   handleFiles(els.fileInput.files);
   els.fileInput.value = "";
+});
+els.folderInput.addEventListener("change", () => {
+  handleFiles(els.folderInput.files);
+  els.folderInput.value = "";
 });
 els.addBoxBtn.addEventListener("click", addBox);
 els.stopBtn.addEventListener("click", () => { if (queue.controller) queue.controller.abort(); });
@@ -1463,6 +1566,7 @@ els.stylePresetInput.addEventListener("change", () => {
   applyStylePreset(els.stylePresetInput.value);
   syncPromptInputs();
   updateJson();
+  saveSettingsToServer();
 });
 els.styleAestheticsInput.addEventListener("input", () => updateStyleField("aesthetics"));
 els.styleLightingInput.addEventListener("input", () => updateStyleField("lighting"));
@@ -1470,11 +1574,35 @@ els.stylePhotoInput.addEventListener("input", () => updateStyleField("photo"));
 els.styleArtStyleInput.addEventListener("input", () => updateStyleField("artStyle"));
 els.styleMediumInput.addEventListener("input", () => updateStyleField("medium"));
 els.stylePaletteInput.addEventListener("input", () => updateStyleField("palette"));
+els.captionModelInput?.addEventListener("change", (e) => {
+  state.captionModel = e.target.value;
+  syncCaptionModelInput();
+  const doc = activeDoc();
+  if (doc) doc.captionModel = state.captionModel;
+  saveSettingsToServer();
+});
 document.getElementById("styleModelInput")?.addEventListener("change", (e) => {
   state.styleModel = e.target.value;
   syncStyleModelInput();
   const doc = activeDoc();
   if (doc) doc.styleModel = state.styleModel;
+  saveSettingsToServer();
+});
+els.dedupIouInput.addEventListener("input", () => {
+  els.dedupIouVal.textContent = Number(els.dedupIouInput.value).toFixed(2);
+  scheduleSaveSettings();
+});
+els.sam3ConfInput.addEventListener("input", () => {
+  els.sam3ConfVal.textContent = Number(els.sam3ConfInput.value).toFixed(2);
+  scheduleSaveSettings();
+});
+els.minAreaInput.addEventListener("input", () => {
+  els.minAreaVal.textContent = els.minAreaInput.value;
+  scheduleSaveSettings();
+});
+els.maxElemsInput.addEventListener("input", () => {
+  els.maxElemsVal.textContent = els.maxElemsInput.value;
+  scheduleSaveSettings();
 });
 els.jsonPreview.addEventListener("input", applyJsonDraft);
 window.addEventListener("pointermove", updateDrag);
@@ -1500,5 +1628,17 @@ els.dropzone.addEventListener("drop", (event) => {
   handleFiles(event.dataTransfer.files);
 });
 
+for (const btn of document.querySelectorAll('.tab-btn')) {
+  btn.addEventListener('click', () => {
+    for (const b of document.querySelectorAll('.tab-btn')) {
+      const active = b === btn;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active);
+      document.getElementById(b.dataset.tab).hidden = !active;
+    }
+  });
+}
+
+loadSettingsFromServer();
 updateJson();
 renderQueue();
