@@ -13,6 +13,7 @@ This fork removes the Pinokio launcher and adds multimodal LLM support and SAM 3
 - **Auto-managed llama-server**: the app starts and stops the llama-server process automatically when needed
 - **Florence-2-large-ft** as the default Florence-2 model (instead of base-ft) for better detection and captions
 - **Folder scan**: load an entire folder of images into the queue in one click
+- **Start from a prompt**: enter a basic prompt and let the LLM improve it for you !
 - **Image filename** displayed above the canvas, selectable for copy-paste
 - **Compact JSON toggle** in the output panel
 - **Stop button** to cancel an ongoing analysis
