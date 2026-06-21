@@ -5,6 +5,6 @@
   "min_bbox_area": 40,
   "min_ocr_area": 20,
   "max_elements": 40,
-  "style_model": "qwen3-vl-8b",
-  "style_preset": "graphic_design"
+  "style_model": "none",
+  "style_preset": "llm"
 }
