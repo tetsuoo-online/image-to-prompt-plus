@@ -89,7 +89,7 @@ button {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
-  min-height: 32px;
+  min-height: 28px;
   border-radius: 8px;
   padding: 0 12px;
   cursor: pointer;
@@ -709,13 +709,26 @@ button:disabled {
   box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.06);
 }
 
-.empty-state,
-.loading-state {
+.empty-state {
   display: grid;
   place-items: center;
   gap: 12px;
   color: var(--muted);
   padding: 40px 32px;
+}
+
+.loading-state {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  color: var(--text);
+  padding: 40px 32px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .empty-state p {
@@ -994,9 +1007,11 @@ button:disabled {
   display: flex;
   gap: 6px;
   transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .stage-toolbar button {
+  pointer-events: auto;
   height: 32px;
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
@@ -1007,7 +1022,11 @@ button:disabled {
 }
 
 .stage-toolbar button:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(74, 222, 128, 0.8);
+  border-color: var(--line-strong);
+}
+.stage-toolbar #stopBtn:hover {
+  background: rgba(251, 43, 84, 0.8);
   border-color: var(--line-strong);
 }
 

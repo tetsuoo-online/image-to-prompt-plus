@@ -216,6 +216,7 @@ const els = {
   addPickFileBtn: document.getElementById("addPickFileBtn"),
   addPickFolderBtn: document.getElementById("addPickFolderBtn"),
   folderBtn: document.getElementById("folderBtn"),
+  stage: document.getElementById("dropzone"),
   dedupIouInput: document.getElementById("dedupIouInput"),
   dedupIouVal: document.getElementById("dedupIouVal"),
   sam3ConfInput: document.getElementById("sam3ConfInput"),
@@ -1699,6 +1700,20 @@ els.maxElemsInput.addEventListener("input", () => {
   scheduleSaveSettings();
 });
 els.jsonPreview.addEventListener("input", applyJsonDraft);
+
+// Sync image max-height to the stage's actual available height so the image
+// never overflows the image-wrap (which would misalign the overlay and boxes).
+// The toolbar is 32px tall at bottom: 12px → occupies 44px from stage bottom.
+// To keep centering symmetric we remove 88px (44px top + 44px bottom equivalent).
+function syncImageMaxHeight() {
+  const stageH = els.stage.getBoundingClientRect().height;
+  if (!stageH) return;
+  const maxH = Math.max(100, stageH - 88);
+  els.imageWrap.style.maxHeight = maxH + "px";
+  els.previewImage.style.maxHeight = maxH + "px";
+}
+new ResizeObserver(syncImageMaxHeight).observe(els.stage);
+
 window.addEventListener("pointermove", updateDrag);
 window.addEventListener("pointerup", stopDrag);
 window.addEventListener("mousemove", updateDrag);
