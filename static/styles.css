@@ -318,6 +318,10 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
 }
+.queue-meta-row #exportAllBtn:hover {
+  background: rgba(74, 222, 128, 0.8);
+  border-color: var(--line-strong);
+}
 
 .llm-server-btn {
   display: inline-flex;
