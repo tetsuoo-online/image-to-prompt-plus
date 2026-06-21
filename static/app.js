@@ -208,6 +208,13 @@ const els = {
   textPromptInput: document.getElementById("textPromptInput"),
   generatePromptBtn: document.getElementById("generatePromptBtn"),
   generateError: document.getElementById("generateError"),
+  addDialog: document.getElementById("addDialog"),
+  addDialogClose: document.getElementById("addDialogClose"),
+  addPromptInput: document.getElementById("addPromptInput"),
+  addGenerateBtn: document.getElementById("addGenerateBtn"),
+  addGenerateError: document.getElementById("addGenerateError"),
+  addPickFileBtn: document.getElementById("addPickFileBtn"),
+  addPickFolderBtn: document.getElementById("addPickFolderBtn"),
   folderBtn: document.getElementById("folderBtn"),
   dedupIouInput: document.getElementById("dedupIouInput"),
   dedupIouVal: document.getElementById("dedupIouVal"),
@@ -1009,17 +1016,55 @@ function mapGeneratedElement(elem, index) {
   };
 }
 
-function applyGeneratedJson(jsonData) {
-  state.highLevelDescription = jsonData.high_level_description || "";
-  state.caption = state.highLevelDescription;
-  syncStyleFromJson(jsonData.style_description);
-  if (state.styleKind !== "none") state.stylePreset = "llm";
+function populateDocFromJson(doc, jsonData) {
+  doc.highLevelDescription = jsonData.high_level_description || "";
+  doc.caption = doc.highLevelDescription;
+  syncStyleFromJson(jsonData.style_description, doc);
+  if (doc.styleKind !== "none") doc.stylePreset = "llm";
   const comp = jsonData.compositional_deconstruction || {};
-  state.background = comp.background || "";
-  state.elements = (comp.elements || []).map(mapGeneratedElement);
-  state.selectedId = state.elements[0]?.id || null;
-  state.palette = [];
-  state.original = { json: jsonData };
+  doc.background = comp.background || "";
+  doc.elements = (comp.elements || []).map(mapGeneratedElement);
+  doc.selectedId = doc.elements[0]?.id || null;
+  doc.palette = [];
+  doc.original = { json: jsonData };
+}
+
+async function createBlankCanvasDoc() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1000;
+  canvas.height = 1000;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#f8f8f7";
+  ctx.fillRect(0, 0, 1000, 1000);
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      const file = new File([blob], "generated.png", { type: "image/png" });
+      resolve(createDoc(file));
+    }, "image/png");
+  });
+}
+
+async function generateAndAddToQueue(prompt, styleModel, errorEl, btn) {
+  errorEl.hidden = true;
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  try {
+    const result = await requestGenerate(prompt, styleModel, null);
+    const doc = await createBlankCanvasDoc();
+    populateDocFromJson(doc, result.json);
+    doc.status = "done";
+    queue.docs.push(doc);
+    loadDoc(doc);
+    renderQueue();
+    return true;
+  } catch (err) {
+    errorEl.textContent = err.message || "Generation failed.";
+    errorEl.hidden = false;
+    return false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Generate JSON";
+  }
 }
 
 async function requestGenerate(prompt, styleModel, signal) {
@@ -1202,7 +1247,7 @@ function renderQueue() {
   addTile.className = "queue-add";
   addTile.title = "Add images";
   addTile.textContent = "+";
-  addTile.addEventListener("click", () => els.fileInput.click());
+  addTile.addEventListener("click", () => els.addDialog.showModal());
   els.queueRail.appendChild(addTile);
   els.queueRail.scrollLeft = scrollLeft;
   const done = queue.docs.filter((doc) => doc.status === "done").length;
@@ -1691,26 +1736,22 @@ for (const btn of document.querySelectorAll('.tab-btn')) {
 els.generatePromptBtn.addEventListener("click", async () => {
   const prompt = els.textPromptInput.value.trim();
   if (!prompt) return;
-  const styleModel = state.styleModel;
-  els.generateError.hidden = true;
-  els.generatePromptBtn.disabled = true;
-  els.generatePromptBtn.textContent = "Generating…";
-  try {
-    const result = await requestGenerate(prompt, styleModel, null);
-    applyGeneratedJson(result.json);
-    render();
-    els.jsonPreview.value = els.compactToggle.checked
-      ? JSON.stringify(result.json)
-      : JSON.stringify(result.json, null, 2);
-    updateJsonStatusFor(result.json);
-  } catch (err) {
-    els.generateError.textContent = err.message || "Generation failed.";
-    els.generateError.hidden = false;
-  } finally {
-    els.generatePromptBtn.disabled = false;
-    els.generatePromptBtn.textContent = "Generate JSON";
+  await generateAndAddToQueue(prompt, state.styleModel, els.generateError, els.generatePromptBtn);
+});
+
+els.addDialogClose.addEventListener("click", () => els.addDialog.close());
+els.addDialog.addEventListener("click", (e) => { if (e.target === els.addDialog) els.addDialog.close(); });
+els.addGenerateBtn.addEventListener("click", async () => {
+  const prompt = els.addPromptInput.value.trim();
+  if (!prompt) return;
+  const ok = await generateAndAddToQueue(prompt, state.styleModel, els.addGenerateError, els.addGenerateBtn);
+  if (ok) {
+    els.addDialog.close();
+    els.addPromptInput.value = "";
   }
 });
+els.addPickFileBtn.addEventListener("click", () => { els.addDialog.close(); els.fileInput.click(); });
+els.addPickFolderBtn.addEventListener("click", () => { els.addDialog.close(); els.folderInput.click(); });
 
 loadSettingsFromServer();
 updateJson();

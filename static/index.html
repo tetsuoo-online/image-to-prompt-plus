@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Image to Prompt</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260621-generate" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260621-generate2" />
   </head>
   <body>
     <header id="queueBar" class="queue-bar" hidden>
@@ -172,6 +172,20 @@
         <textarea id="jsonPreview" class="json-preview" spellcheck="false" aria-label="Editable JSON prompt">{}</textarea>
       </aside>
     </main>
-    <script src="/static/app.js?v=20260621-generate"></script>
+    <script src="/static/app.js?v=20260621-generate2"></script>
+    <dialog id="addDialog" class="add-dialog">
+      <button id="addDialogClose" class="add-dialog-close" type="button" aria-label="Close">✕</button>
+      <div class="text-generate">
+        <label class="text-generate-label" for="addPromptInput">Generate from description</label>
+        <textarea id="addPromptInput" class="text-generate-input" rows="3" placeholder="e.g. a sunset over the ocean with a fishing boat, warm golden hour, watercolor style"></textarea>
+        <button id="addGenerateBtn" class="text-generate-btn" type="button">Generate JSON</button>
+        <span id="addGenerateError" class="generate-error" hidden></span>
+      </div>
+      <div class="upload-divider">or upload an image</div>
+      <div class="upload-buttons">
+        <button id="addPickFileBtn" class="upload-button" type="button">Choose images</button>
+        <button id="addPickFolderBtn" class="upload-button" type="button">Choose folder</button>
+      </div>
+    </dialog>
   </body>
 </html>
