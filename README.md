@@ -1,4 +1,5 @@
 # image-to-prompt-plus
+<img src="assets/screen.webp" alt="alt text" style="max-width: 50%; height: auto;" /></br>
 
 A modified version of [cocktailpeanut/image-to-prompt](https://github.com/cocktailpeanut/image-to-prompt) — a local web app that turns images into editable [Ideogram 4](https://ideogram.ai) JSON prompts.
 
