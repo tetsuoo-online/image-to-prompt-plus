@@ -6,5 +6,5 @@
   "min_ocr_area": 20,
   "max_elements": 40,
   "style_model": "qwen3-vl-8b",
-  "style_preset": "llm"
+  "style_preset": "graphic_design"
 }

@@ -55,6 +55,65 @@ MLLM_SPECS: dict[str, tuple[str, str, str]] = {
     ),
 }
 
+TEXT_TO_JSON_SYSTEM_PROMPT = """You are a scene composition assistant. Given a user description for an image, output a single valid JSON document describing the scene. Output JSON only — no prose, no markdown fences, no commentary.
+
+# JSON schema — PHOTOGRAPHIC image (medium is photography)
+
+{
+  "high_level_description": "<one-sentence summary: setting, subjects, mood>",
+  "style_description": {
+    "aesthetics": "<visual style and treatment>",
+    "lighting": "<light source, direction, quality, color temperature>",
+    "photo": "<camera, lens, photographic style>",
+    "medium": "photograph"
+  },
+  "compositional_deconstruction": {
+    "background": "<environment behind subjects>",
+    "elements": [
+      {"type": "obj", "bbox": [ymin, xmin, ymax, xmax], "desc": "<identity, pose, position, size, details>"}
+    ]
+  }
+}
+
+# JSON schema — NON-PHOTOGRAPHIC image (illustration, painting, 3D render, etc.)
+
+{
+  "high_level_description": "<one-sentence summary: setting, subjects, mood>",
+  "style_description": {
+    "aesthetics": "<visual style and treatment>",
+    "lighting": "<lighting description>",
+    "medium": "<medium: illustration, oil painting, 3D render, watercolor, etc.>",
+    "art_style": "<specific art style or movement: anime, concept art, flat vector, etc.>"
+  },
+  "compositional_deconstruction": {
+    "background": "<environment behind subjects>",
+    "elements": [
+      {"type": "obj", "bbox": [ymin, xmin, ymax, xmax], "desc": "<identity, pose, position, size, details>"}
+    ]
+  }
+}
+
+# Rules
+
+## style_description
+- Use the PHOTOGRAPHIC schema (with "photo" key) when the medium is photography.
+- Use the NON-PHOTOGRAPHIC schema (with "art_style" key) for everything else.
+- Never include both "photo" and "art_style" in the same object.
+
+## bbox
+- Format: [ymin, xmin, ymax, xmax] as integers on a 1000x1000 virtual canvas.
+- Origin is top-left; y increases downward, x increases rightward.
+- 0 <= ymin < ymax <= 1000, 0 <= xmin < xmax <= 1000.
+- Place elements deliberately: vary depth, use the full canvas, avoid centering everything.
+
+## elements
+- List 3-8 elements, roughly background-to-foreground.
+- Use "obj" for objects/subjects; use "text" (add a "text" field for the content) for signs or labels.
+- desc: identity, pose, orientation, position in frame, relative size, key visual details.
+
+## Output
+- Valid JSON only — no extra keys, no markdown fences."""
+
 STYLE_SYSTEM_PROMPT = """You are a visual analyst for Ideogram 4.
 Analyze the image and return ONLY a JSON object with these exact keys:
 {
@@ -646,6 +705,85 @@ def parse_style_json(raw: str) -> dict[str, Any] | None:
     }
 
 
+def parse_generated_json(raw: str) -> dict[str, Any] | None:
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    result: dict[str, Any] = {}
+    hld = data.get("high_level_description", "")
+    result["high_level_description"] = str(hld).strip() or "Generated scene."
+
+    style = data.get("style_description")
+    if isinstance(style, dict):
+        has_photo = "photo" in style
+        has_art = "art_style" in style
+        if has_photo and not has_art:
+            norm: dict[str, Any] = {
+                "aesthetics": str(style.get("aesthetics", "")).strip(),
+                "lighting": str(style.get("lighting", "")).strip(),
+                "photo": str(style.get("photo", "")).strip(),
+                "medium": str(style.get("medium", "photograph")).strip(),
+            }
+        elif has_art and not has_photo:
+            norm = {
+                "aesthetics": str(style.get("aesthetics", "")).strip(),
+                "lighting": str(style.get("lighting", "")).strip(),
+                "medium": str(style.get("medium", "illustration")).strip(),
+                "art_style": str(style.get("art_style", "")).strip(),
+            }
+        else:
+            norm = None  # type: ignore[assignment]
+        if norm is not None:
+            palette = []
+            for c in (style.get("color_palette") or []):
+                c = str(c).strip().upper()
+                if re.match(r"^#?[0-9A-F]{6}$", c):
+                    palette.append(c if c.startswith("#") else f"#{c}")
+            if palette:
+                norm["color_palette"] = palette[:6]
+            result["style_description"] = norm
+
+    comp = data.get("compositional_deconstruction") or {}
+    if not isinstance(comp, dict):
+        comp = {}
+    background = str(comp.get("background", "")).strip() or "Background setting."
+    elements = []
+    for item in (comp.get("elements") or []):
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type", "obj")
+        if item_type not in ("obj", "text"):
+            item_type = "obj"
+        bbox_raw = item.get("bbox")
+        if isinstance(bbox_raw, list) and len(bbox_raw) >= 4:
+            try:
+                y1, x1, y2, x2 = (max(0, min(1000, int(v))) for v in bbox_raw[:4])
+                if y1 >= y2:
+                    y2 = min(1000, y1 + 50)
+                if x1 >= x2:
+                    x2 = min(1000, x1 + 50)
+                bbox: list[int] = [y1, x1, y2, x2]
+            except (ValueError, TypeError):
+                bbox = [250, 250, 750, 750]
+        else:
+            bbox = [250, 250, 750, 750]
+        elem: dict[str, Any] = {"type": item_type, "bbox": bbox}
+        if item_type == "text":
+            elem["text"] = str(item.get("text", "")).strip()
+        elem["desc"] = str(item.get("desc", "object")).strip()
+        elements.append(elem)
+
+    result["compositional_deconstruction"] = {"background": background, "elements": elements}
+    return result
+
+
 class LlamaServerManager:
     def __init__(self) -> None:
         self._process: subprocess.Popen | None = None
@@ -819,6 +957,55 @@ def health() -> dict[str, Any]:
 @app.get("/api/mllm-models")
 def mllm_models_route() -> dict[str, Any]:
     return {k: resolve_mllm_model(k) for k in MLLM_SPECS}
+
+
+@app.post("/api/generate")
+async def generate_from_prompt(request: Request) -> JSONResponse:
+    body = await request.json()
+    prompt = str(body.get("prompt", "")).strip()
+    style_model = str(body.get("style_model", "none")).strip()
+
+    if not prompt:
+        raise HTTPException(status_code=400, detail="prompt is required")
+    if style_model == "none":
+        raise HTTPException(status_code=400, detail="Select a style model to generate from text.")
+
+    request_id = uuid.uuid4().hex[:8]
+    log_progress(request_id, f"Text→JSON: model={style_model!r}, prompt={prompt[:80]!r}")
+
+    with progress_stage(request_id, f"Ensuring llama-server ({style_model})"):
+        ready = await asyncio.get_running_loop().run_in_executor(
+            None, _llama_manager.ensure_model, style_model, request_id)
+    if not ready:
+        raise HTTPException(status_code=503, detail=f"llama-server not available for {style_model}")
+
+    payload = {
+        "model": style_model, "max_tokens": 1024, "temperature": 0.3,
+        "messages": [
+            {"role": "system", "content": TEXT_TO_JSON_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+    }
+    with progress_stage(request_id, "Generating JSON from prompt"):
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    f"{LLAMA_SERVER_URL}/v1/chat/completions",
+                    json=payload, headers={"Content-Type": "application/json"})
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"llama-server error {resp.status_code}: {resp.text[:200]}")
+            raw = resp.json()["choices"][0]["message"]["content"]
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Generation failed: {exc}") from exc
+
+    result = parse_generated_json(raw)
+    if not result:
+        raise HTTPException(status_code=502, detail=f"Could not parse generated JSON: {raw[:200]}")
+
+    log_progress(request_id, f"Done — {len(result.get('compositional_deconstruction', {}).get('elements', []))} elements")
+    return JSONResponse({"json": result})
 
 
 @app.post("/api/analyze")

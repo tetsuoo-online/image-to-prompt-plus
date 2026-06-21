@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Image to Prompt</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260619-tabs1" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260621-generate" />
   </head>
   <body>
     <header id="queueBar" class="queue-bar" hidden>
@@ -127,6 +127,13 @@
         <input id="fileInput" type="file" accept="image/*" multiple hidden />
         <input id="folderInput" type="file" accept="image/*" webkitdirectory hidden />
         <div id="emptyState" class="empty-state">
+          <div class="text-generate">
+            <label class="text-generate-label" for="textPromptInput">Generate from description</label>
+            <textarea id="textPromptInput" class="text-generate-input" rows="3" placeholder="e.g. a sunset over the ocean with a fishing boat, warm golden hour, watercolor style"></textarea>
+            <button id="generatePromptBtn" class="text-generate-btn" type="button">Generate JSON</button>
+            <span id="generateError" class="generate-error" hidden></span>
+          </div>
+          <div class="upload-divider">or upload an image</div>
           <div class="upload-buttons">
             <button id="pickFileBtn" class="upload-button" type="button">Choose images</button>
             <button id="pickFolderBtn" class="upload-button" type="button">Choose folder</button>
@@ -165,6 +172,6 @@
         <textarea id="jsonPreview" class="json-preview" spellcheck="false" aria-label="Editable JSON prompt">{}</textarea>
       </aside>
     </main>
-    <script src="/static/app.js?v=20260619-tabs1"></script>
+    <script src="/static/app.js?v=20260621-generate"></script>
   </body>
 </html>

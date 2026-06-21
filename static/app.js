@@ -205,6 +205,9 @@ const els = {
   sam3SettingsGroup: document.getElementById("sam3SettingsGroup"),
   stageFilename: document.getElementById("stageFilename"),
   loadingLabel: document.getElementById("loadingLabel"),
+  textPromptInput: document.getElementById("textPromptInput"),
+  generatePromptBtn: document.getElementById("generatePromptBtn"),
+  generateError: document.getElementById("generateError"),
   folderBtn: document.getElementById("folderBtn"),
   dedupIouInput: document.getElementById("dedupIouInput"),
   dedupIouVal: document.getElementById("dedupIouVal"),
@@ -989,6 +992,52 @@ async function requestAnalysis(file, signal) {
   return response.json();
 }
 
+function mapGeneratedElement(elem, index) {
+  const type = elem.type === "text" ? "text" : "obj";
+  const words = (elem.desc || "").split(/\s+/).slice(0, 5).join(" ");
+  const label = words || `object ${index + 1}`;
+  return {
+    id: uid(),
+    type,
+    label,
+    text: type === "text" ? elem.text || "" : "",
+    description: elem.desc || label,
+    bbox: parseBbox(elem.bbox || [300, 300, 700, 700]),
+    color: "#D0D0D0",
+    hidden: false,
+    _lastLabel: label,
+  };
+}
+
+function applyGeneratedJson(jsonData) {
+  state.highLevelDescription = jsonData.high_level_description || "";
+  state.caption = state.highLevelDescription;
+  syncStyleFromJson(jsonData.style_description);
+  if (state.styleKind !== "none") state.stylePreset = "llm";
+  const comp = jsonData.compositional_deconstruction || {};
+  state.background = comp.background || "";
+  state.elements = (comp.elements || []).map(mapGeneratedElement);
+  state.selectedId = state.elements[0]?.id || null;
+  state.palette = [];
+  state.original = { json: jsonData };
+}
+
+async function requestGenerate(prompt, styleModel, signal) {
+  const response = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, style_model: styleModel }),
+    signal,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail ?? text; } catch { detail = text; }
+    throw new Error(detail || "Generation failed.");
+  }
+  return response.json();
+}
+
 function applyAnalysis(doc, result) {
   doc.original = result;
   doc.elements = (result.elements || []).map(mapResultElement);
@@ -1638,6 +1687,30 @@ for (const btn of document.querySelectorAll('.tab-btn')) {
     }
   });
 }
+
+els.generatePromptBtn.addEventListener("click", async () => {
+  const prompt = els.textPromptInput.value.trim();
+  if (!prompt) return;
+  const styleModel = state.styleModel;
+  els.generateError.hidden = true;
+  els.generatePromptBtn.disabled = true;
+  els.generatePromptBtn.textContent = "Generating…";
+  try {
+    const result = await requestGenerate(prompt, styleModel, null);
+    applyGeneratedJson(result.json);
+    render();
+    els.jsonPreview.value = els.compactToggle.checked
+      ? JSON.stringify(result.json)
+      : JSON.stringify(result.json, null, 2);
+    updateJsonStatusFor(result.json);
+  } catch (err) {
+    els.generateError.textContent = err.message || "Generation failed.";
+    els.generateError.hidden = false;
+  } finally {
+    els.generatePromptBtn.disabled = false;
+    els.generatePromptBtn.textContent = "Generate JSON";
+  }
+});
 
 loadSettingsFromServer();
 updateJson();
