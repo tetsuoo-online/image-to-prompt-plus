@@ -421,6 +421,15 @@ button:disabled {
   line-height: 1;
 }
 
+#pasteBoxBtn {
+  font-size: 14px;
+}
+
+#pasteBoxBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .quiet {
   color: var(--muted);
   padding: 12px 14px;

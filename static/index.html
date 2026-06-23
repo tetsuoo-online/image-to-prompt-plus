@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Image to Prompt</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260621-loadingoverlay3" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260623-copypaste" />
   </head>
   <body>
     <header id="queueBar" class="queue-bar" hidden>
@@ -91,7 +91,10 @@
           </div>
           <div class="panel-head">
             <span class="eyebrow">Elements</span>
-            <button id="addBoxBtn" class="icon-button" title="Add box" type="button">+</button>
+            <div style="display:flex;gap:4px">
+              <button id="pasteBoxBtn" class="icon-button" title="Paste box" type="button" disabled>⎘</button>
+              <button id="addBoxBtn" class="icon-button" title="Add box" type="button">+</button>
+            </div>
           </div>
           <div id="emptyItems" class="quiet">Drop images to create editable zones.</div>
           <div id="itemsList" class="items-list"></div>
@@ -186,6 +189,6 @@
         <button id="addPickFolderBtn" class="upload-button" type="button">Choose folder</button>
       </div>
     </dialog>
-    <script src="/static/app.js?v=20260621-loadingoverlay3"></script>
+    <script src="/static/app.js?v=20260623-copypaste"></script>
   </body>
 </html>

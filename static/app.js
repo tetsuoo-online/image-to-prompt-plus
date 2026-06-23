@@ -134,6 +134,8 @@ async function loadSettingsFromServer() {
   } catch {}
 }
 
+let copiedItem = null;
+
 const state = {
   file: null,
   imageUrl: "",
@@ -166,6 +168,7 @@ const els = {
   pickFileBtn: document.getElementById("pickFileBtn"),
   pickFolderBtn: document.getElementById("pickFolderBtn"),
   addBoxBtn: document.getElementById("addBoxBtn"),
+  pasteBoxBtn: document.getElementById("pasteBoxBtn"),
   leftResizer: document.getElementById("leftResizer"),
   itemsPanel: document.getElementById("itemsPanel"),
   stopBtn: document.getElementById("stopBtn"),
@@ -735,6 +738,7 @@ function makeItemRow(item) {
     </div>
     <div class="item-actions">
       <button class="mini hide-btn" type="button" title="Hide">${item.hidden ? "Show" : "Hide"}</button>
+      <button class="mini copy-btn" type="button" title="Copy">Copy</button>
       <button class="mini dup-btn" type="button" title="Duplicate">Dup</button>
       <button class="mini del-btn" type="button" title="Delete">Del</button>
     </div>
@@ -805,6 +809,11 @@ function makeItemRow(item) {
     event.stopPropagation();
     item.hidden = !item.hidden;
     render();
+  });
+  row.querySelector(".copy-btn").addEventListener("click", (event) => {
+    event.stopPropagation();
+    copiedItem = JSON.parse(JSON.stringify(item));
+    els.pasteBoxBtn.disabled = false;
   });
   row.querySelector(".dup-btn").addEventListener("click", (event) => {
     event.stopPropagation();
@@ -1593,6 +1602,15 @@ els.folderInput.addEventListener("change", () => {
   els.folderInput.value = "";
 });
 els.addBoxBtn.addEventListener("click", addBox);
+els.pasteBoxBtn.addEventListener("click", () => {
+  if (!copiedItem) return;
+  const copy = JSON.parse(JSON.stringify(copiedItem));
+  copy.id = uid();
+  state.elements.push(copy);
+  state.selectedId = copy.id;
+  render();
+  requestAnimationFrame(() => revealItemRow(copy.id, true));
+});
 els.stopBtn.addEventListener("click", () => { if (queue.controller) queue.controller.abort(); });
 
 (function () {
