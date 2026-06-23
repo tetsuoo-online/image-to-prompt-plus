@@ -226,6 +226,7 @@ const els = {
   pickFolderBtn: document.getElementById("pickFolderBtn"),
   addBoxBtn: document.getElementById("addBoxBtn"),
   pasteBoxBtn: document.getElementById("pasteBoxBtn"),
+  jsonPanel: document.querySelector(".json-panel"),
   undoBtn: document.getElementById("undoBtn"),
   redoBtn: document.getElementById("redoBtn"),
   leftResizer: document.getElementById("leftResizer"),
@@ -1843,6 +1844,31 @@ for (const eventName of ["dragleave", "drop"]) {
 
 els.dropzone.addEventListener("drop", (event) => {
   handleFiles(event.dataTransfer.files);
+});
+
+for (const eventName of ["dragenter", "dragover"]) {
+  els.jsonPanel.addEventListener(eventName, (event) => {
+    if (!event.dataTransfer?.types?.includes("Files")) return;
+    event.preventDefault();
+    els.jsonPanel.classList.add("drag-over");
+  });
+}
+els.jsonPanel.addEventListener("dragleave", (event) => {
+  if (els.jsonPanel.contains(event.relatedTarget)) return;
+  els.jsonPanel.classList.remove("drag-over");
+});
+els.jsonPanel.addEventListener("drop", (event) => {
+  els.jsonPanel.classList.remove("drag-over");
+  const file = event.dataTransfer?.files[0];
+  if (!file || (!file.name.endsWith(".json") && file.type !== "application/json")) return;
+  event.preventDefault();
+  const reader = new FileReader();
+  reader.onload = () => {
+    els.jsonPreview.value = reader.result;
+    applyJsonDraft();
+    pushHistory();
+  };
+  reader.readAsText(file);
 });
 
 for (const btn of document.querySelectorAll('.tab-btn')) {

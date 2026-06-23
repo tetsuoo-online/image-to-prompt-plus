@@ -722,6 +722,11 @@ button:disabled {
   box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.06);
 }
 
+.json-panel.drag-over {
+  outline: 2px solid var(--selected);
+  outline-offset: -2px;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
