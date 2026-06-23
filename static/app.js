@@ -136,6 +136,63 @@ async function loadSettingsFromServer() {
 
 let copiedItem = null;
 
+const history = { stack: [], index: -1 };
+const HISTORY_MAX = 50;
+let _historyDebounce = null;
+
+function pushHistory() {
+  if (restoring) return;
+  clearTimeout(_historyDebounce);
+  _historyDebounce = null;
+  history.stack.splice(history.index + 1);
+  history.stack.push(JSON.parse(JSON.stringify(state.elements)));
+  if (history.stack.length > HISTORY_MAX) {
+    history.stack.shift();
+  } else {
+    history.index++;
+  }
+  syncUndoRedo();
+}
+
+function clearHistory() {
+  clearTimeout(_historyDebounce);
+  _historyDebounce = null;
+  history.stack = [];
+  history.index = -1;
+}
+
+function scheduleHistoryPush() {
+  clearTimeout(_historyDebounce);
+  _historyDebounce = setTimeout(pushHistory, 1000);
+}
+
+function undo() {
+  clearTimeout(_historyDebounce);
+  _historyDebounce = null;
+  if (history.index <= 0) return;
+  history.index--;
+  state.elements = JSON.parse(JSON.stringify(history.stack[history.index]));
+  state.selectedId = state.elements[0]?.id || null;
+  render();
+  syncUndoRedo();
+}
+
+function redo() {
+  clearTimeout(_historyDebounce);
+  _historyDebounce = null;
+  if (history.index >= history.stack.length - 1) return;
+  history.index++;
+  state.elements = JSON.parse(JSON.stringify(history.stack[history.index]));
+  state.selectedId = state.elements[0]?.id || null;
+  render();
+  syncUndoRedo();
+}
+
+function syncUndoRedo() {
+  els.undoBtn.disabled = history.index <= 0;
+  els.redoBtn.disabled = history.index >= history.stack.length - 1;
+}
+
 const state = {
   file: null,
   imageUrl: "",
@@ -169,6 +226,8 @@ const els = {
   pickFolderBtn: document.getElementById("pickFolderBtn"),
   addBoxBtn: document.getElementById("addBoxBtn"),
   pasteBoxBtn: document.getElementById("pasteBoxBtn"),
+  undoBtn: document.getElementById("undoBtn"),
+  redoBtn: document.getElementById("redoBtn"),
   leftResizer: document.getElementById("leftResizer"),
   itemsPanel: document.getElementById("itemsPanel"),
   stopBtn: document.getElementById("stopBtn"),
@@ -775,6 +834,7 @@ function makeItemRow(item) {
     item._lastLabel = value;
     updateJson();
     renderBoxes();
+    scheduleHistoryPush();
   });
   typeInput.addEventListener("change", (event) => {
     item.type = event.target.value === "text" ? "text" : "obj";
@@ -790,6 +850,7 @@ function makeItemRow(item) {
       textWrap.hidden = true;
     }
     updateJson();
+    pushHistory();
   });
   textInput.addEventListener("input", (event) => {
     item.text = event.target.value;
@@ -800,15 +861,18 @@ function makeItemRow(item) {
       renderBoxes();
     }
     updateJson();
+    scheduleHistoryPush();
   });
   descInput.addEventListener("input", (event) => {
     item.description = event.target.value;
     updateJson();
+    scheduleHistoryPush();
   });
   row.querySelector(".hide-btn").addEventListener("click", (event) => {
     event.stopPropagation();
     item.hidden = !item.hidden;
     render();
+    pushHistory();
   });
   row.querySelector(".copy-btn").addEventListener("click", (event) => {
     event.stopPropagation();
@@ -824,6 +888,7 @@ function makeItemRow(item) {
     state.elements.push(copy);
     state.selectedId = copy.id;
     render();
+    pushHistory();
     requestAnimationFrame(() => revealItemRow(copy.id, true));
   });
   row.querySelector(".del-btn").addEventListener("click", (event) => {
@@ -831,6 +896,7 @@ function makeItemRow(item) {
     state.elements = state.elements.filter((entry) => entry.id !== item.id);
     state.selectedId = state.elements[0]?.id || null;
     render();
+    pushHistory();
   });
   return row;
 }
@@ -965,6 +1031,8 @@ function loadDoc(doc) {
   els.imageWrap.hidden = !doc;
   render();
   restoring = false;
+  clearHistory();
+  pushHistory();
   renderQueue();
 }
 
@@ -1284,6 +1352,7 @@ function addBox() {
   state.elements.push(item);
   state.selectedId = item.id;
   render();
+  pushHistory();
 }
 
 function resetToOriginal() {
@@ -1292,6 +1361,7 @@ function resetToOriginal() {
     state.selectedId = null;
     resetStyleFields();
     render();
+    pushHistory();
     return;
   }
   state.elements = (state.original.elements || []).map(mapResultElement);
@@ -1303,6 +1373,7 @@ function resetToOriginal() {
   state.background = state.original.json?.compositional_deconstruction?.background || state.original.background || "";
   state.palette = normalizePalette(state.original.palette || []);
   render();
+  pushHistory();
 }
 
 function normalizedPointer(event) {
@@ -1359,6 +1430,7 @@ function updateDrag(event) {
 }
 
 function stopDrag() {
+  if (state.drag) pushHistory();
   state.drag = null;
 }
 
@@ -1565,6 +1637,7 @@ function applyJsonDraft() {
     renderItems();
     syncPromptInputs();
     updateJsonStatusFor(data);
+    scheduleHistoryPush();
   } catch (error) {
     setJsonStatus(error instanceof SyntaxError ? "Invalid JSON" : "Unsupported JSON", true);
   }
@@ -1609,6 +1682,7 @@ els.pasteBoxBtn.addEventListener("click", () => {
   state.elements.push(copy);
   state.selectedId = copy.id;
   render();
+  pushHistory();
   requestAnimationFrame(() => revealItemRow(copy.id, true));
 });
 els.stopBtn.addEventListener("click", () => { if (queue.controller) queue.controller.abort(); });
@@ -1637,6 +1711,8 @@ els.stopBtn.addEventListener("click", () => { if (queue.controller) queue.contro
 }());
 els.autoDetectBtn.addEventListener("click", reanalyzeActive);
 els.resetBtn.addEventListener("click", resetToOriginal);
+els.undoBtn.addEventListener("click", undo);
+els.redoBtn.addEventListener("click", redo);
 els.exportAllBtn.addEventListener("click", exportAll);
 els.failedChip.addEventListener("click", () => {
   const failed = queue.docs.find((doc) => doc.status === "failed");
@@ -1655,6 +1731,20 @@ els.queueRail.addEventListener(
   { passive: false }
 );
 window.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key === "z" && !event.shiftKey) {
+    if (!event.target.closest?.("input, textarea, select")) {
+      event.preventDefault();
+      undo();
+      return;
+    }
+  }
+  if ((event.ctrlKey || event.metaKey) && (event.key === "Z" || (event.key === "z" && event.shiftKey))) {
+    if (!event.target.closest?.("input, textarea, select")) {
+      event.preventDefault();
+      redo();
+      return;
+    }
+  }
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   if (event.target.closest?.("input, textarea, select")) return;
   if (!queue.activeId || queue.docs.length < 2) return;

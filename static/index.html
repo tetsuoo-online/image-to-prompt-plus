@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Image to Prompt</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260623-copypaste" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260623-undoredo" />
   </head>
   <body>
     <header id="queueBar" class="queue-bar" hidden>
@@ -159,6 +159,8 @@
           <button id="folderBtn" type="button">Folder</button>
           <button id="autoDetectBtn" type="button">Auto detect</button>
           <button id="resetBtn" type="button">Reset</button>
+          <button id="undoBtn" type="button" disabled style="margin-left:34px">Undo</button>
+          <button id="redoBtn" type="button" disabled>Redo</button>
         </div>
       </section>
 
@@ -189,6 +191,6 @@
         <button id="addPickFolderBtn" class="upload-button" type="button">Choose folder</button>
       </div>
     </dialog>
-    <script src="/static/app.js?v=20260623-copypaste"></script>
+    <script src="/static/app.js?v=20260623-undoredo"></script>
   </body>
 </html>
